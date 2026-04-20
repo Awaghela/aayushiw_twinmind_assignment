@@ -29,7 +29,7 @@ export function useAudioRecorder(onChunk: (chunk: AudioChunk) => void, chunkInte
     }
     setTimeout(() => {
       if (chunksRef.current.length === 0) return; // nothing to send — skip
-      const blob = new Blob(chunksRef.current, { type: "audio/webm" });
+      const blob = new Blob(chunksRef.current, { type: "mimeTypeRef.current" });
       chunksRef.current = []; // clear so the next interval starts fresh
       onChunk({ blob, timestamp: Date.now() });
     }, 50);
