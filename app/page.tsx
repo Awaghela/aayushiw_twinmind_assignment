@@ -1,7 +1,7 @@
 "use client"; // needed — uses browser APIs (MediaRecorder, localStorage)
 
 import { useState, useEffect, useCallback, useRef } from "react";
-import { createPortal } from "react-dom";
+import { createPortal } from "react-dom"; // renders export dropdown outside header DOM to avoid z-index clipping
 import { Settings, Download, Brain, Sun, Moon } from "lucide-react";
 import { TranscriptPanel } from "@/components/TranscriptPanel";
 import { SuggestionsPanel } from "@/components/SuggestionsPanel";
@@ -14,20 +14,22 @@ import { exportSession } from "@/lib/export";
 import { DEFAULT_SETTINGS } from "@/lib/types";
 import type { TranscriptChunk, SuggestionBatch, ChatMessage, AppSettings, Suggestion } from "@/lib/types";
 
+// lightweight collision-free ID — no external dependency needed
 function uid() {
   return Math.random().toString(36).slice(2);
 }
 
 export default function Home() {
-  // persisted across reloads; keyLoaded blocks render until localStorage is read
   const [apiKey, setApiKey, keyLoaded] = useLocalStorage("groq_api_key", "");
   const [settings, setSettings, settingsLoaded] = useLocalStorage<AppSettings>("app_settings", DEFAULT_SETTINGS);
   const [settingsOpen, setSettingsOpen] = useState(false);
 
+  // core session state — all reset on page reload (intentional, no persistence needed)
   const [transcriptChunks, setTranscriptChunks] = useState<TranscriptChunk[]>([]);
   const [suggestionBatches, setSuggestionBatches] = useState<SuggestionBatch[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
 
+  // loading flags drive UI indicators in each panel
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isSuggesting, setIsSuggesting] = useState(false);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -39,12 +41,15 @@ export default function Home() {
   const toggleTheme = () => {
     const next = theme === "dark" ? "light" : "dark";
     setTheme(next);
-    // flips CSS variables for the whole UI without re-rendering every component
+    // flips CSS variables on <html> so the whole UI switches without re-rendering every component
     document.documentElement.setAttribute("data-theme", next);
   };
 
+  // ref used to measure export button position so the portal dropdown can anchor to it
   const exportBtnRef = useRef<HTMLButtonElement>(null);
   const [exportMenuPos, setExportMenuPos] = useState({ top: 0, right: 0 });
+
+  // counts down to next auto-refresh shown in the suggestions panel header
   const [countdown, setCountdown] = useState(0);
   const countdownRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -52,21 +57,25 @@ export default function Home() {
   const fullTranscript = transcriptChunks.map((c) => c.text).join("\n");
 
   // ref not state: state updates are async/batched — two rapid triggers could both
-  // pass the guard before either sets isSuggesting, causing duplicate batches
+  // pass the guard before either update lands, causing duplicate suggestion batches
   const isSuggestingRef = useRef(false);
 
-  // set by handleRefresh; cleared in handleAudioChunk once the new chunk arrives,
-  // ensuring suggestions always run against the freshest transcript
+  // set by handleRefresh when recording; cleared in handleAudioChunk after the new
+  // chunk arrives — ensures suggestions always run against the freshest transcript
   const pendingRefreshRef = useRef(false);
 
-  // set inside the state updater so it's guaranteed to be true when the useEffect
-  // that watches transcriptChunks fires
+  // set inside the setTranscriptChunks updater so it's guaranteed to be true
+  // when the useEffect that watches transcriptChunks fires
   const shouldAutoSuggestRef = useRef(false);
 
-  // receives each ~30s audio blob from the recorder, sends to Whisper, appends chunk
+  // ─── Audio → Transcription ────────────────────────────────────────────────
+
+  // called by useAudioRecorder with each ~30s audio blob.
+  // skips blobs under 1kb  to avoid Whisper 400 errors.
   const handleAudioChunk = useCallback(
     async (chunk: { blob: Blob; timestamp: number }) => {
       if (!apiKey) return;
+      if (chunk.blob.size < 1000) return;
       setIsTranscribing(true);
       setTranscriptError(null);
       try {
@@ -95,7 +104,10 @@ export default function Home() {
     settings.refreshIntervalSeconds * 1000
   );
 
-  // generates 3 suggestions; passes previous previews to avoid repeating last batch
+  // ─── Suggestion Generation ────────────────────────────────────────────────
+
+  // generates 3 suggestions from the transcript tail.
+  // passes previous batch's previews so the model doesn't repeat the same points.
   const runSuggestions = useCallback(
     async (transcript: string, batches: SuggestionBatch[]) => {
       if (!apiKey || isSuggestingRef.current) return;
@@ -113,7 +125,7 @@ export default function Home() {
             suggestions,
             transcriptSnapshot: transcript,
           };
-          setSuggestionBatches((prev) => [batch, ...prev]); // newest first
+          setSuggestionBatches((prev) => [batch, ...prev]); // prepend so newest shows at top
         }
       } catch (e) {
         console.error("Suggestions error:", e);
@@ -125,8 +137,8 @@ export default function Home() {
     [apiKey, settings]
   );
 
-  // if recording: flushes audio and waits for handleAudioChunk to trigger suggestions
-  // if not recording: runs suggestions immediately on current transcript
+  // if recording: flush audio and wait for handleAudioChunk to trigger suggestions
+  // if not recording: run suggestions immediately on current transcript
   const handleRefresh = useCallback(async () => {
     resetCountdown();
     if (isRecording) {
@@ -137,6 +149,8 @@ export default function Home() {
       runSuggestions(transcript, suggestionBatches);
     }
   }, [isRecording, forceFlush, transcriptChunks, suggestionBatches, runSuggestions]);
+
+  // ─── Countdown Timer ──────────────────────────────────────────────────────
 
   function resetCountdown() {
     if (countdownRef.current) clearInterval(countdownRef.current);
@@ -152,18 +166,28 @@ export default function Home() {
     }, 1000);
   }
 
-  // auto-suggest after each new transcript chunk; flag pattern avoids stale closure issues
+  // ─── Effects ─────────────────────────────────────────────────────────────
+
+  // keeps a ref to latest suggestionBatches so the auto-suggest useEffect always
+  // reads the current value — avoids stale closure without adding it as a dep
+  const suggestionBatchesRef = useRef<SuggestionBatch[]>([]);
+  useEffect(() => {
+    suggestionBatchesRef.current = suggestionBatches;
+  }, [suggestionBatches]);
+
+  // fires after each new transcript chunk arrives — the flag pattern ensures
+  // runSuggestions always sees the committed state, not a stale closure
   useEffect(() => {
     if (shouldAutoSuggestRef.current && transcriptChunks.length > 0) {
       shouldAutoSuggestRef.current = false;
       const transcript = transcriptChunks.map((c) => c.text).join("\n");
-      runSuggestions(transcript, suggestionBatches);
+      runSuggestions(transcript, suggestionBatchesRef.current);
       resetCountdown();
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transcriptChunks]);
 
-  // start/stop countdown in sync with recording state
+  // starts/stops countdown in sync with recording state
   useEffect(() => {
     if (!isRecording) {
       if (countdownRef.current) clearInterval(countdownRef.current);
@@ -177,13 +201,15 @@ export default function Home() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isRecording, settings.refreshIntervalSeconds]);
 
-  // prompt for API key on first visit
+  // auto-open Settings on first visit if no API key is saved
   useEffect(() => {
     if (keyLoaded && !apiKey) setSettingsOpen(true);
   }, [keyLoaded, apiKey]);
 
-  // streams detail response token-by-token into chat; caches result on the suggestion
-  // so re-clicking the same card replays instantly without a second API call
+  // ─── Suggestion Click → Chat ──────────────────────────────────────────────
+
+  // streams detail response token-by-token into chat.
+  // caches completed detail on the suggestion so re-clicking replays instantly.
   const handleSuggestionClick = useCallback(
     async (suggestion: Suggestion) => {
       setActiveSuggestionId(suggestion.id);
@@ -201,14 +227,14 @@ export default function Home() {
         role: "assistant",
         content: "",
         timestamp: Date.now(),
-        loading: true,
+        loading: true, // shows pulsing dots until first streaming token arrives
       };
 
       setChatMessages((prev) => [...prev, userMsg, assistantMsg]);
       setIsChatLoading(true);
 
       try {
-        // cache hit — replay instantly
+        // cache hit — replay stored detail instantly, no API call
         if (suggestion.detail) {
           setChatMessages((prev) =>
             prev.map((m) =>
@@ -218,11 +244,11 @@ export default function Home() {
           return;
         }
 
-        // cache miss — stream token-by-token; spinner drops on first token
+        // cache miss — stream token-by-token; loading spinner drops on first token
         let accumulated = "";
         for await (const delta of streamDetailResponse(apiKey, suggestion, fullTranscript, settings)) {
           accumulated += delta;
-          const snap = accumulated;
+          const snap = accumulated; // capture for closure — accumulated would be stale inside setState
           setChatMessages((prev) =>
             prev.map((m) =>
               m.id === assistantId ? { ...m, content: snap, loading: false } : m
@@ -252,6 +278,8 @@ export default function Home() {
     },
     [apiKey, fullTranscript, settings]
   );
+
+  // ─── Freeform Chat ────────────────────────────────────────────────────────
 
   // streams chat response; sends last 10 messages as history for conversational context
   const handleChatSend = useCallback(
@@ -306,14 +334,20 @@ export default function Home() {
     [apiKey, chatMessages, fullTranscript, settings]
   );
 
+  // ─── Export ───────────────────────────────────────────────────────────────
+
   const handleExport = (format: "json" | "text") => {
     exportSession(transcriptChunks, suggestionBatches, chatMessages, format);
     setExportMenuOpen(false);
   };
 
+  // merge mic permission error and transcription API error into one surface
   const combinedError = micError || transcriptError;
 
-  // wait for localStorage to load before rendering to avoid API key flash
+  // ─── Render ───────────────────────────────────────────────────────────────
+
+  // block render until localStorage is read — prevents flashing the API key prompt
+  // for users who already have a key saved
   if (!keyLoaded || !settingsLoaded) {
     return (
       <div className="flex h-screen items-center justify-center">
@@ -327,6 +361,7 @@ export default function Home() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden relative z-10">
+      {/* ── top bar ── */}
       <header className="flex items-center justify-between px-6 py-3.5 header-glow shrink-0 transition-colors duration-300"
         style={{
           background: theme === "dark" ? "rgba(6,8,13,0.85)" : "rgba(255,255,255,0.9)",
@@ -341,6 +376,7 @@ export default function Home() {
           </div>
           <span className="text-[var(--dim)] opacity-30">·</span>
           <span className="font-mono text-sm text-[var(--dim)] hidden sm:block">Live Suggestions</span>
+          {/* red pulsing REC badge — only visible while mic is active */}
           {isRecording && (
             <div className="rec-indicator ml-1">
               <span className="relative flex h-2 w-2">
@@ -353,11 +389,12 @@ export default function Home() {
         </div>
         <div className="flex items-center gap-2">
           <div className="relative">
+            {/* disabled until at least one transcript chunk exists */}
             <button
               ref={exportBtnRef}
               onClick={() => {
                 if (!exportMenuOpen && exportBtnRef.current) {
-                  // anchor dropdown to button position via portal
+                  // measure button position so the portal dropdown anchors to it correctly
                   const rect = exportBtnRef.current.getBoundingClientRect();
                   setExportMenuPos({ top: rect.bottom + 8, right: window.innerWidth - rect.right });
                 }
@@ -370,9 +407,10 @@ export default function Home() {
               <Download size={11} />
               Export
             </button>
-            {/* portal escapes header's stacking context so dropdown renders above everything */}
+            {/* portal renders dropdown at <body> level to escape header's stacking context */}
             {exportMenuOpen && createPortal(
               <>
+                {/* invisible backdrop — click anywhere outside to close */}
                 <div className="fixed inset-0 z-40" onClick={() => setExportMenuOpen(false)} />
                 <div
                   className="fixed w-44 rounded-xl p-1.5 z-50 animate-fade-in"
@@ -416,7 +454,7 @@ export default function Home() {
             {theme === "dark" ? <Sun size={11} /> : <Moon size={11} />}
             {theme === "dark" ? "Light" : "Dark"}
           </button>
-          {/* accent style when no key set — draws attention to required first step */}
+          {/* accent style when no key is set — draws attention to required first step */}
           <button
             onClick={() => setSettingsOpen(true)}
             title="Settings"
@@ -428,8 +466,9 @@ export default function Home() {
         </div>
       </header>
 
-      {/* 3-column layout — each column scrolls independently */}
+      {/* ── 3-column layout — each column scrolls independently ── */}
       <main className="flex flex-1 overflow-hidden">
+        {/* left 28%: live transcript chunks */}
         <div className="w-[28%] col-separator flex flex-col overflow-hidden">
           <TranscriptPanel
             isRecording={isRecording}
@@ -442,6 +481,7 @@ export default function Home() {
           />
         </div>
 
+        {/* middle 36%: suggestion batches, newest at top */}
         <div className="w-[36%] col-separator flex flex-col overflow-hidden">
           <SuggestionsPanel
             batches={suggestionBatches}
@@ -451,10 +491,12 @@ export default function Home() {
             activeSuggestionId={activeSuggestionId}
             countdown={countdown}
             isRecording={isRecording}
+            // drives status bar text: "Transcribing audio…" or "Generating suggestions…"
             status={isTranscribing ? "transcribing" : isSuggesting ? "generating" : "idle"}
           />
         </div>
 
+        {/* right (flex-1): chat panel — takes remaining width */}
         <div className="flex-1 flex flex-col overflow-hidden">
           <ChatPanel
             messages={chatMessages}
@@ -464,6 +506,7 @@ export default function Home() {
         </div>
       </main>
 
+      {/* settings modal — rendered at root level, controlled by settingsOpen state */}
       <SettingsModal
         isOpen={settingsOpen}
         onClose={() => setSettingsOpen(false)}

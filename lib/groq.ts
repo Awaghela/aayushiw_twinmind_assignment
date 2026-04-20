@@ -43,7 +43,7 @@ export async function transcribeAudio(
   const formData = new FormData();
   formData.append("file", audioBlob, "audio.webm");
   formData.append("model", "whisper-large-v3");
-  formData.append("response_format", "text"); // plain string response — no JSON parsing needed
+  formData.append("response_format", "text");
   formData.append("language", "en");
 
   const res = await fetch(`${GROQ_BASE}/audio/transcriptions`, {
@@ -89,7 +89,7 @@ export async function generateSuggestions(
     },
     body: JSON.stringify({
       model: CHAT_MODEL,
-      max_tokens: 500,
+      max_tokens: 1024,
       temperature: 0.7, // some variation so batches don't feel repetitive
       stream: false, // must be false — res.json() cannot parse an SSE stream
       messages: [
@@ -119,8 +119,17 @@ export async function generateSuggestions(
     const clean = raw.replace(/```json|```/g, "").trim();
     parsed = JSON.parse(clean);
   } catch {
+    // model truncated the JSON — salvage any complete suggestions already written
+    const matches = [...raw.matchAll(/"type":\s*"([^"]+)"[^}]*"preview":\s*"([^"]+)"/g)];
+    if (matches.length > 0) {
+      return matches.slice(0, 3).map((m, i) => ({
+        id: `${Date.now()}-${i}`,
+        type: (m[1] as SuggestionType) || "question",
+        preview: m[2] || "",
+      }));
+    }
     console.error("Failed to parse suggestions JSON:", raw);
-    return []; // return empty rather than crash — panel stays blank until next refresh
+    return [];
   }
 
   // slice(0, 3) guards against the model returning more than 3 items despite the prompt
