@@ -4,7 +4,7 @@ An AI-powered meeting copilot that listens to live audio, transcribes it in real
 
 ## Live Demo
 
-> **[your-app.vercel.app](https://your-app.vercel.app)** — paste your Groq API key in Settings to start
+> **[AayushiW_TwinMind_Assignment.vercel.app](https://aayushiwtwinmindassignment.vercel.app/)** — paste your Groq API key in Settings to start
 
 ---
 
@@ -23,15 +23,15 @@ No backend required. All API calls go directly from the browser to Groq.
 
 ## Stack
 
-| Layer | Choice | Why |
-|---|---|---|
-| Framework | Next.js 14 (App Router) | Easy Vercel deploy, no extra server needed |
-| Styling | Tailwind CSS + CSS custom properties | Design tokens for dark/light mode, no runtime cost |
-| Transcription | Groq — Whisper Large V3 | Required by spec. Fast and accurate |
-| Suggestions + Chat | Groq — llama-3.3-70b-versatile | Closest available model to the GPT-OSS 120B tier on Groq. ~200–400ms for suggestions |
-| Audio capture | Web MediaRecorder API | Native browser, zero dependencies |
-| State | React `useState` + `useRef` | No over-engineering — no Redux, no Zustand |
-| Persistence | `localStorage` | API key and settings only. Session state is intentionally in-memory |
+| Layer              | Choice                               | Why                                                                                  |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------------------------------ |
+| Framework          | Next.js 14 (App Router)              | Easy Vercel deploy, no extra server needed                                           |
+| Styling            | Tailwind CSS + CSS custom properties | Design tokens for dark/light mode, no runtime cost                                   |
+| Transcription      | Groq — Whisper Large V3              | Required by spec. Fast and accurate                                                  |
+| Suggestions + Chat | Groq — llama-3.3-70b-versatile       | Closest available model to the GPT-OSS 120B tier on Groq. ~200–400ms for suggestions |
+| Audio capture      | Web MediaRecorder API                | Native browser, zero dependencies                                                    |
+| State              | React `useState` + `useRef`          | No over-engineering — no Redux, no Zustand                                           |
+| Persistence        | `localStorage`                       | API key and settings only. Session state is intentionally in-memory                  |
 
 ---
 
@@ -43,7 +43,7 @@ The suggestion prompt is the core of the product. The key decisions:
 
 **Type taxonomy** — 5 types: `question`, `talking-point`, `answer`, `factcheck`, `clarify`. Enough to cover every meaningful meeting moment without giving the model too many choices. Each type has a clear trigger condition in the prompt so the model picks the right one situationally, not randomly.
 
-**Recency over completeness** — only the most recent ~800 tokens (~3200 chars, tail of transcript) are sent. The model needs to react to what's happening *right now*, not summarize the whole meeting. Earlier context is background noise for suggestions.
+**Recency over completeness** — only the most recent ~800 tokens (~3200 chars, tail of transcript) are sent. The model needs to react to what's happening _right now_, not summarize the whole meeting. Earlier context is background noise for suggestions.
 
 **Word count as a signal** — the transcript word count is passed in the user message (`TRANSCRIPT (N words so far)`). This lets the model calibrate: early in the meeting it should surface broader exploratory suggestions; later it should go specific and in-the-weeds.
 
@@ -57,17 +57,17 @@ The suggestion prompt is the core of the product. The key decisions:
 
 ### Detail prompt (on click)
 
-When a suggestion card is clicked, the full transcript context (2000 tokens) is sent alongside the suggestion type and preview. The detail prompt is designed to give *actual depth*, not a longer version of the preview.
+When a suggestion card is clicked, the full transcript context (2000 tokens) is sent alongside the suggestion type and preview. The detail prompt is designed to give _actual depth_, not a longer version of the preview.
 
 Type-specific format instructions are injected into the user message programmatically — not just mentioned in the system prompt — so the model applies them reliably:
 
-| Type | What the detail should do |
-|---|---|
-| `answer` | Full answer immediately, then reasoning, then caveats |
-| `factcheck` | Lead with the correction, explain why the original claim was wrong |
-| `question` | Explain what this question would reveal; strong vs weak answer |
-| `talking-point` | 2–3 supporting arguments + one concrete real-world example |
-| `clarify` | State both interpretations; say which is more likely given context |
+| Type            | What the detail should do                                          |
+| --------------- | ------------------------------------------------------------------ |
+| `answer`        | Full answer immediately, then reasoning, then caveats              |
+| `factcheck`     | Lead with the correction, explain why the original claim was wrong |
+| `question`      | Explain what this question would reveal; strong vs weak answer     |
+| `talking-point` | 2–3 supporting arguments + one concrete real-world example         |
+| `clarify`       | State both interpretations; say which is more likely given context |
 
 Detail responses stream token-by-token (same SSE pattern as chat) so the first word appears in ~200ms — no waiting for the full response to load.
 
@@ -114,14 +114,14 @@ Browser
 
 ## Settings (all editable in-app)
 
-| Setting | Default | What it controls |
-|---|---|---|
-| Refresh interval | 30s | How often audio is flushed and suggestions regenerated |
-| Suggestion context | 800 tokens | How much transcript tail is sent to the suggestion model |
-| Detail context | 2000 tokens | How much transcript is sent when a suggestion is clicked |
-| Suggestion prompt | See `lib/types.ts` | Full system prompt for suggestion generation |
-| Detail prompt | See `lib/types.ts` | System prompt for on-click detail responses |
-| Chat prompt | See `lib/types.ts` | System prompt for freeform chat |
+| Setting            | Default            | What it controls                                         |
+| ------------------ | ------------------ | -------------------------------------------------------- |
+| Refresh interval   | 30s                | How often audio is flushed and suggestions regenerated   |
+| Suggestion context | 800 tokens         | How much transcript tail is sent to the suggestion model |
+| Detail context     | 2000 tokens        | How much transcript is sent when a suggestion is clicked |
+| Suggestion prompt  | See `lib/types.ts` | Full system prompt for suggestion generation             |
+| Detail prompt      | See `lib/types.ts` | System prompt for on-click detail responses              |
+| Chat prompt        | See `lib/types.ts` | System prompt for freeform chat                          |
 
 ---
 
