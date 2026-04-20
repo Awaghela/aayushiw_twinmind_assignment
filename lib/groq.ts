@@ -89,7 +89,7 @@ export async function generateSuggestions(
     },
     body: JSON.stringify({
       model: CHAT_MODEL,
-      max_tokens: 350, // 3 suggestions at ~100 tokens each — tight budget keeps latency low
+      max_tokens: 500,
       temperature: 0.7, // some variation so batches don't feel repetitive
       stream: false, // must be false — res.json() cannot parse an SSE stream
       messages: [
@@ -157,7 +157,7 @@ export async function* streamDetailResponse(
     },
     body: JSON.stringify({
       model: CHAT_MODEL,
-      max_tokens: 800,
+      max_tokens: 1024,
       temperature: 0.5, // lower than suggestions — detail responses should be precise, not creative
       stream: true,
       messages: [
@@ -234,7 +234,7 @@ export async function* streamChatResponse(
     },
     body: JSON.stringify({
       model: CHAT_MODEL,
-      max_tokens: 1000,
+      max_tokens: 1024,
       temperature: 0.6,
       stream: true,
       messages,
