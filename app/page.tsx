@@ -75,7 +75,7 @@ export default function Home() {
   const handleAudioChunk = useCallback(
     async (chunk: { blob: Blob; timestamp: number }) => {
       if (!apiKey) return;
-      if (chunk.blob.size < 1000) return;
+      if (chunk.blob.size < 15000) return;
       setIsTranscribing(true);
       setTranscriptError(null);
       try {
