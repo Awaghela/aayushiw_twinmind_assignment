@@ -23,15 +23,15 @@ No backend required. All API calls go directly from the browser to Groq.
 
 ## Stack
 
-| Layer              | Choice                               | Why                                                                                  |
-| ------------------ | ------------------------------------ | ------------------------------------------------------------------------------------ |
-| Framework          | Next.js 14 (App Router)              | Easy Vercel deploy, no extra server needed                                           |
-| Styling            | Tailwind CSS + CSS custom properties | Design tokens for dark/light mode, no runtime cost                                   |
-| Transcription      | Groq — Whisper Large V3              | Required by spec. Fast and accurate                                                  |
-| Suggestions + Chat | Groq — openai/gpt-oss-120b     | CRequired by spec. MoE 120B model, ~500 tokens/sec on Groq |
-| Audio capture      | Web MediaRecorder API                | Native browser, zero dependencies                                                    |
-| State              | React `useState` + `useRef`          | No over-engineering — no Redux, no Zustand                                           |
-| Persistence        | `localStorage`                       | API key and settings only. Session state is intentionally in-memory                  |
+| Layer              | Choice                               | Why                                                                 |
+| ------------------ | ------------------------------------ | ------------------------------------------------------------------- |
+| Framework          | Next.js 14 (App Router)              | Easy Vercel deploy, no extra server needed                          |
+| Styling            | Tailwind CSS + CSS custom properties | Design tokens for dark/light mode, no runtime cost                  |
+| Transcription      | Groq — Whisper Large V3              | Required by spec. Fast and accurate                                 |
+| Suggestions + Chat | Groq — openai/gpt-oss-120b           | Required by spec. MoE 120B model, ~500 tokens/sec on Groq           |
+| Audio capture      | Web MediaRecorder API                | Native browser, zero dependencies                                   |
+| State              | React `useState` + `useRef`          | No over-engineering — no Redux, no Zustand                          |
+| Persistence        | `localStorage`                       | API key and settings only. Session state is intentionally in-memory |
 
 ---
 
@@ -136,3 +136,20 @@ Browser
 **localStorage for API key** — fine for a personal tool, not appropriate for a shared deployment. A production version would use a server-side proxy with user auth.
 
 **30s suggestion window** — suggestions fire on each audio chunk (~30s). A tighter loop (10s) would feel more responsive but triple the API cost and risk rate limits.
+
+## TwinMind Product Observations
+
+Used the TwinMind app (iOS) before building this assignment. Key observations that informed design decisions:
+
+**What works well:**
+
+- Suggestions surface quickly and feel contextually relevant during real conversations
+- The card preview format is immediately scannable — you can act on it without tapping
+- Persistent chat history across the session is useful for referencing earlier suggestions
+
+**What I aimed to improve:**
+
+- **Suggestion variety** — the app sometimes repeats the same type (e.g. 3 questions in a row). My prompt explicitly enforces type mixing and requires an `answer` when a question was just asked
+- **Preview specificity** — some previews in the app are generic ("you might want to follow up on this"). My prompt requires every preview to reference a specific name, number, or claim from the transcript
+- **Detail depth** — clicked suggestions in the app give a longer version of the preview. My detail prompt is designed to give structurally different responses per type — a factcheck leads with the correction, a talking-point gives 2-3 arguments with a real example
+- **Streaming** — detail responses in my implementation stream token-by-token so the first word appears in ~200ms, matching the chat panel feel
