@@ -1,7 +1,7 @@
 import type { Suggestion, AppSettings, SuggestionType } from "./types";
 
 const GROQ_BASE = "https://api.groq.com/openai/v1";
-const CHAT_MODEL = "llama-3.3-70b-versatile"; // closest Groq model to the GPT-OSS 120B tier in the spec
+const CHAT_MODEL = "openai/gpt-oss-120b";
 
 // keeps the transcript within the token budget by taking the tail (most recent content).
 // recency matters more than completeness — suggestions should react to what's happening now,
