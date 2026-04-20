@@ -28,7 +28,7 @@ No backend required. All API calls go directly from the browser to Groq.
 | Framework          | Next.js 14 (App Router)              | Easy Vercel deploy, no extra server needed                                           |
 | Styling            | Tailwind CSS + CSS custom properties | Design tokens for dark/light mode, no runtime cost                                   |
 | Transcription      | Groq — Whisper Large V3              | Required by spec. Fast and accurate                                                  |
-| Suggestions + Chat | Groq — llama-3.3-70b-versatile       | Closest available model to the GPT-OSS 120B tier on Groq. ~200–400ms for suggestions |
+| Suggestions + Chat | Groq — openai/gpt-oss-120b     | CRequired by spec. MoE 120B model, ~500 tokens/sec on Groq |
 | Audio capture      | Web MediaRecorder API                | Native browser, zero dependencies                                                    |
 | State              | React `useState` + `useRef`          | No over-engineering — no Redux, no Zustand                                           |
 | Persistence        | `localStorage`                       | API key and settings only. Session state is intentionally in-memory                  |
@@ -89,7 +89,7 @@ Browser
   ├── Suggestion engine (on each new chunk)
   │     ├── trimToTokens(transcript, 800) → tail context
   │     ├── + previousPreviews for dedup
-  │     └── llama-3.3-70b → JSON[3 suggestions]
+  │     └── openai/gpt-oss-120b → JSON[3 suggestions]
   │
   └── Chat / Detail panel
         ├── streamDetailResponse → SSE generator → token-by-token
