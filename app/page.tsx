@@ -371,7 +371,7 @@ export default function Home() {
           <div className="flex items-center gap-2">
             <Brain size={16} className="text-[var(--accent)]" />
             <span className="font-display font-800 text-base tracking-tight logo-text">
-              TwinMind
+              MeetPulse AI
             </span>
           </div>
           <span className="text-[var(--dim)] opacity-30">·</span>
