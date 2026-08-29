@@ -1,10 +1,10 @@
-# TwinMind — Live Suggestions
+# MeetPulse AI — Live Suggestions
 
 An AI-powered meeting copilot that listens to live audio, transcribes it in real time, and surfaces 3 contextual suggestions every ~30 seconds. Clicking a suggestion streams a detailed answer into the chat panel.
 
 ## Live Demo
 
-> **[AayushiW_TwinMind_Assignment.vercel.app](https://aayushiwtwinmindassignment.vercel.app/)** — paste your Groq API key in Settings to start
+> **[MeetPulse AI](https://aayushiwmeetpulse-ai.vercel.app/)** — paste your Groq API key in Settings to start
 
 ---
 
